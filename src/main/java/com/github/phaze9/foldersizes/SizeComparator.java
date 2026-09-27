@@ -1,19 +1,23 @@
 package com.github.phaze9.foldersizes;
 
 import com.intellij.ide.projectView.ProjectViewNode;
+import com.intellij.ide.projectView.impl.ModuleGroup;
 import com.intellij.ide.projectView.impl.GroupByTypeComparator;
 import com.intellij.ide.util.treeView.NodeDescriptor;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.roots.ModuleRootManager;
 import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Collection;
+
 final class SizeComparator extends GroupByTypeComparator {
+    private final Project project;
     private final DirectoryMetricsService service;
 
     SizeComparator(Project project, String paneId, DirectoryMetricsService service) {
         super(project, paneId);
+        this.project = project;
         this.service = service;
     }
 
@@ -43,17 +47,16 @@ final class SizeComparator extends GroupByTypeComparator {
     }
 
     private boolean isSizeable(ProjectViewNode<?> node) {
-        return node.getValue() instanceof Module || node.getVirtualFile() != null;
+        return node.getValue() instanceof Module
+                || node.getValue() instanceof ModuleGroup
+                || node.getVirtualFile() != null;
     }
 
     @Nullable
     private Long sizeOf(ProjectViewNode<?> node) {
-        if (node.getValue() instanceof Module module) {
-            if (module.isDisposed()) {
-                return null;
-            }
-            return service.getCombinedSizeOrSchedule(
-                    java.util.List.of(ModuleRootManager.getInstance(module).getContentRoots()));
+        Collection<VirtualFile> moduleRoots = ModuleContentRoots.forNodeValue(project, node.getValue());
+        if (moduleRoots != null) {
+            return service.getCombinedSizeOrSchedule(moduleRoots);
         }
 
         VirtualFile file = node.getVirtualFile();

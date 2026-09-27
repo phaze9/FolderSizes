@@ -12,6 +12,7 @@
     <extensions defaultExtensionNs="com.intellij">
         <projectService serviceImplementation="com.github.phaze9.foldersizes.DirectoryMetricsService"/>
         <projectViewNodeDecorator implementation="com.github.phaze9.foldersizes.DirectoryMetricsDecorator"/>
+        <treeStructureProvider implementation="com.github.phaze9.foldersizes.ModuleGroupMetricsTreeStructureProvider"/>
     </extensions>
 
     <applicationListeners>

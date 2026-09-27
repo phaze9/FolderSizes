@@ -14,6 +14,8 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -85,8 +87,17 @@ public final class DirectoryMetricsService implements Disposable {
     DirectoryMetrics getCombinedMetricsOrSchedule(Collection<VirtualFile> roots) {
         DirectoryMetrics combined = new DirectoryMetrics(0, 0, 0, true);
         boolean available = true;
-        Set<VirtualFile> uniqueRoots = new HashSet<>(roots);
-        for (VirtualFile root : uniqueRoots) {
+        Map<Path, VirtualFile> rootsByPath = new LinkedHashMap<>();
+        for (VirtualFile root : new HashSet<>(roots)) {
+            Path path = localDirectoryPath(root);
+            if (path == null) {
+                available = false;
+            } else {
+                rootsByPath.put(path, root);
+            }
+        }
+        for (Path path : withoutDescendants(rootsByPath.keySet())) {
+            VirtualFile root = rootsByPath.get(path);
             DirectoryMetrics metrics = getOrSchedule(root);
             if (metrics == null) {
                 available = false;
@@ -95,6 +106,17 @@ public final class DirectoryMetricsService implements Disposable {
             }
         }
         return available ? combined : null;
+    }
+
+    static Set<Path> withoutDescendants(Collection<Path> paths) {
+        Set<Path> normalized = new HashSet<>();
+        for (Path path : paths) {
+            normalized.add(path.toAbsolutePath().normalize());
+        }
+        Set<Path> allPaths = Set.copyOf(normalized);
+        normalized.removeIf(path -> allPaths.stream().anyMatch(other ->
+                !path.equals(other) && path.startsWith(other)));
+        return normalized;
     }
 
     void pathsChanged(Collection<Path> changedPaths) {

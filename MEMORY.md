@@ -31,15 +31,17 @@ Do not install it into the application bundle itself.
 
 ## Architecture
 
-- `DirectoryMetricsDecorator` preserves the node's original name as the first colored-text fragment, then adds the Project view suffix; it never performs disk I/O on the UI thread. Local directory nodes use their cached recursive metrics, while module grouping nodes combine the metrics of all content roots.
+- `DirectoryMetricsDecorator` preserves the node's original name as the first colored-text fragment, then adds the Project view suffix; it never performs disk I/O on the UI thread. Local directory-backed nodes use their cached recursive metrics, while actual `Module` values combine the metrics of their content roots.
+- `ModuleContentRoots` resolves content roots for both `Module` and `ModuleGroup` values. Groups include modules from descendant groups, and nested content roots are collapsed before aggregation so files are not counted twice.
+- IntelliJ does not invoke `ProjectViewNodeDecorator` for its synthetic `ModuleGroupNode` rows. `ModuleGroupMetricsTreeStructureProvider` therefore replaces `ProjectViewModuleGroupNode` instances with `MetricsModuleGroupNode`; that wrapper appends the same shared metrics suffix from its `update()` method. The provider is registered through the supported project-level `com.intellij.treeStructureProvider` extension point.
 - Folder metrics are shown only while IntelliJ's **File Details** option is enabled. That action is backed by `UISettings.showInplaceComments` in IDEA 2026.2.3.
 - `FolderSizesPluginListener` enables File Details on first installation and after a dynamic plugin re-enable. An application property records an active installation so ordinary IDE restarts do not override a user's later manual choice; plugin unload clears the property for the next activation.
-- `DirectoryMetricsService` owns the per-project cache, schedules background scans, coalesces Project view refreshes, and handles manual invalidation.
+- `DirectoryMetricsService` owns the per-project cache, schedules background scans, coalesces Project view refreshes, handles manual invalidation, and removes descendant roots before combining multi-root metrics.
 - `DirectoryTreeScanner` performs a bottom-up NIO tree walk. A single scan publishes results for the requested root and its descendant directories.
 - `DirectoryChangeListener` converts VFS changes into affected paths. Changed subtrees and cached ancestors are invalidated; unrelated cached entries remain valid.
 - `RecalculateFolderSizesAction` exposes **Recalculate Folder Sizes** in the Project view context menu and under **Options → Appearance**, and clears the cache.
 - `SortBySizeAction` exposes **Size** in the Project view's native **Sort By** menu. It installs `SizeComparator` for the active pane and restores IntelliJ's normal comparator when disabled.
-- `SizeComparator` orders known sizes largest-first, leaves names as the stable tie-breaker, and respects **Folders Always on Top**. Files use their `VirtualFile` length, folders use cached recursive metrics, and modules use the combined recursive size of all content roots.
+- `SizeComparator` orders known sizes largest-first, leaves names as the stable tie-breaker, and respects **Folders Always on Top**. Files use their `VirtualFile` length, folders use cached recursive metrics, and modules and module groups use the combined recursive size of their unique content roots.
 - `MetricFormatter` formats decimal units (`KB`, `MB`, and so on) and singular/plural counts.
 
 ## Cache and recalculation rules
@@ -52,7 +54,7 @@ Do not install it into the application bundle itself.
 - Project view refreshes are debounced by 150 ms.
 - Missing metrics display `calculating…` until the background scan completes.
 - Sort-by-size requests missing folder and module metrics through the same background scan path. Unknown entries sort after known entries and move into place on the normal debounced Project view refresh.
-- Module decoration and size sorting share `DirectoryMetricsService.getCombinedMetricsOrSchedule`, so module counts, total size, loading state, and partial status are derived from the same content-root results.
+- Module and module-group decoration and size sorting share `DirectoryMetricsService.getCombinedMetricsOrSchedule`, so counts, total size, loading state, and partial status are derived from the same content-root results. Descendant content roots are removed before aggregation to prevent double-counting nested modules.
 - Unreadable paths do not abort the entire walk; affected totals are labeled `partial`.
 
 ## Build and verification
@@ -106,9 +108,11 @@ On 2026-09-27:
 - JetBrains Plugin Verifier reported `Compatible` for IDEA builds `262.10968.63` and `263.5701.42`.
 - After tying folder metrics to File Details and adding automatic activation, `test buildPlugin` passed and Plugin Verifier again reported `Compatible` for both builds with no plugin defects or API warnings. The plugin remained eligible for dynamic enable/disable without an IDE restart.
 - After adding size sorting for files, folders, and modules, all 7 unit tests and `buildPlugin` passed. Plugin Verifier reported `Compatible` for IDEA builds `262.10968.63` and `263.5701.42`, with no internal or experimental API warnings; dynamic enable/disable remained eligible.
-- After adding recursive stats to module grouping nodes, all 9 unit tests passed. Plugin Verifier reported `Compatible` for IDEA builds `262.10968.63` and `263.5701.42`; dynamic enable/disable remained eligible. New aggregation coverage verifies count/size summation, partial-status propagation, and saturation at `Long.MAX_VALUE`.
+- An initial decorator-only attempt at recursive module-group stats passed all 9 unit tests and Plugin Verifier, but it did not change the synthetic `ModuleGroupNode` rows because IntelliJ never invokes `ProjectViewNodeDecorator` for those nodes.
 - After placing recalculation under **Options → Appearance** and shortening the native **Sort By** entry to **Size**, all 9 unit tests and `buildPlugin` passed. The rebuilt JAR was installed and its action registrations were verified from the installed manifest.
-- The rebuilt plugin was installed into the IntelliJ IDEA 2026.2 user-plugin directory, and the installed JAR was checked byte-for-byte against the build output.
+- After adding the tree-structure provider and module-group node wrapper, all 10 unit tests passed. Plugin Verifier reported `Compatible` for IDEA builds `262.10968.63` and `263.5701.42`, with no internal API usage; dynamic enable/disable remained eligible. The new regression test verifies that nested content roots are excluded from combined metrics.
+- The rebuilt plugin was installed into the IntelliJ IDEA 2026.2 user-plugin directory. Its JAR matched the build output at SHA-256 `e9692a0f076468173418a5b9dcfd4f73d2d3051cb3c764aad9037826b4630013`.
+- After a full IntelliJ restart, the live `$HOME/Sites` Project view showed stats on the grouping rows, including `gewinnspiele-test` (29 dirs, 2,231 files, 212 MB), `kittybreeder` (420 dirs, 4,088 files, 49.8 MB), and `liv` (3,226 dirs, 36,628 files, 870 MB).
 
 After copying a new build into the user plugin directory, restart IntelliJ to load it.
 

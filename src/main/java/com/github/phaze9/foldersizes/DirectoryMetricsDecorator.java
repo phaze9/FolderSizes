@@ -4,17 +4,19 @@ import com.intellij.ide.projectView.PresentationData;
 import com.intellij.ide.projectView.ProjectViewNode;
 import com.intellij.ide.projectView.ProjectViewNodeDecorator;
 import com.intellij.ide.ui.UISettings;
-import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.roots.ModuleRootManager;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.ui.SimpleTextAttributes;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Collection;
+
 public final class DirectoryMetricsDecorator implements ProjectViewNodeDecorator {
+    private final Project project;
     private final DirectoryMetricsService service;
 
     public DirectoryMetricsDecorator(Project project) {
+        this.project = project;
         service = DirectoryMetricsService.getInstance(project);
     }
 
@@ -25,12 +27,10 @@ public final class DirectoryMetricsDecorator implements ProjectViewNodeDecorator
         }
 
         DirectoryMetrics metrics;
-        if (node.getValue() instanceof Module module) {
-            if (module.isDisposed()) {
-                return;
-            }
-            metrics = service.getCombinedMetricsOrSchedule(
-                    java.util.List.of(ModuleRootManager.getInstance(module).getContentRoots()));
+        Collection<VirtualFile> moduleRoots = ModuleContentRoots.forNodeValue(project, node.getValue());
+        if (moduleRoots != null) {
+            decorateRoots(service, moduleRoots, data);
+            return;
         } else {
             VirtualFile file = node.getVirtualFile();
             if (file == null || !file.isDirectory()) {
@@ -39,6 +39,20 @@ public final class DirectoryMetricsDecorator implements ProjectViewNodeDecorator
             metrics = service.getOrSchedule(file);
         }
 
+        decorateMetrics(data, metrics);
+    }
+
+    static void decorateRoots(
+            DirectoryMetricsService service,
+            Collection<VirtualFile> roots,
+            PresentationData data) {
+        if (!UISettings.getInstance().getShowInplaceComments()) {
+            return;
+        }
+        decorateMetrics(data, service.getCombinedMetricsOrSchedule(roots));
+    }
+
+    private static void decorateMetrics(PresentationData data, DirectoryMetrics metrics) {
         if (metrics == null) {
             appendSuffix(data, "  calculating…");
         } else {
