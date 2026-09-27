@@ -48,9 +48,10 @@ Do not install it into the application bundle itself.
 
 - Cache scope is one IntelliJ project.
 - Maximum cache size is 50,000 directory entries.
-- IntelliJ persists the bounded cache in its project cache storage. On project reopen, saved metrics display immediately and each visible restored entry schedules a background refresh on first use.
-- Restored entries are display-only until refreshed: they are not accepted as exact subtree contributions for move, rename, or delete arithmetic. If such a VFS event arrives first, the listener falls back to invalidation and recalculation.
-- Fresh in-memory entries expire after 10 minutes. Expiry remains a correctness backstop for missed, ambiguous, or external filesystem changes; it is not a scheduled refresh.
+- IntelliJ persists the bounded cache in its project cache storage. On project reopen, saved metrics display immediately and are treated like current in-memory entries.
+- IntelliJ's VFS refresh events update or invalidate only the affected cache entries, both when opening a project and when the user refreshes the Project view. Automatically invalidated entries retain their last known metrics while replacement scans run.
+- In-memory entries expire after 24 hours. Expired entries likewise retain their last known metrics until the replacement scan completes. Expiry remains a correctness backstop for missed, ambiguous, or external filesystem changes; it is not a scheduled refresh.
+- **Recalculate Folder Sizes** remains the explicit full-cache refresh and is the only refresh that clears displayed metrics to `calculating…` while scans run.
 - Concurrent scans are deduplicated when an existing ancestor scan already covers a requested directory.
 - A generation counter prevents results from an in-progress scan being published after a relevant VFS change.
 - Exact VFS deltas update complete, unsaturated ancestor entries in place. Any underflow, overflow, saturated value, partial result, symlink/special-file event, or unknown subtree contribution falls back to lazy recalculation rather than risking an incorrect total.
@@ -166,6 +167,8 @@ On 2026-09-27:
 - Project-scoped cache persistence was added with stale-while-revalidate behavior. Reopened projects show saved metrics immediately, visible entries refresh in the background, and unrefreshed restored values are excluded from exact VFS subtree arithmetic. IntelliJ XML serialization has a direct round-trip regression test.
 - All 16 unit tests passed. Plugin Verifier reported `Compatible` for IDEA builds `262.10968.63` and `263.5701.42`, with dynamic enable/disable eligibility.
 - The persistent-cache build was deployed to the IDEA 2026.2 user-plugin directory. Its installed JAR matched the packaged JAR at SHA-256 `808e87178b00a744aff4d41bd96f2f9714e17930911f2a40752898101f216984`; the distributable ZIP SHA-256 was `2eb86e9e8e5852ea755bb0145b9a9805a1fb51911d5735efc7e170bd6885cbbb`.
+- The cache lifetime was increased from 10 minutes to 24 hours. Restored entries are accepted immediately, while IntelliJ startup and Project view refreshes update or invalidate only paths reported through VFS events. Automatic expiry and ambiguous-event invalidation use stale-while-refresh behavior so existing metrics remain visible until replacements are ready; only **Recalculate Folder Sizes** clears values to `calculating…`.
+- All 16 unit tests passed, and Plugin Verifier reported `Compatible` for IDEA builds `262.10968.63` and `263.5701.42`, with dynamic enable/disable eligibility. The build was deployed locally; its installed JAR matched the packaged JAR at SHA-256 `9eb732d536398582d95920d0466810f4828db7494f7949ac916e43284ce5980c`, and the distributable ZIP SHA-256 was `96146fdfdc05729bfe062368ec3277e15ca6d32005b57b18d02ca393d201123f`.
 
 After copying a new build into the user plugin directory, restart IntelliJ to load it.
 

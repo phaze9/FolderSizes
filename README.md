@@ -16,9 +16,9 @@ Details off afterwards also hides the folder details.
 
 - Decoration never performs disk I/O on the UI thread. A missing value is shown as `calculating…` while a background scan runs.
 - One bottom-up scan publishes metrics for the requested directory and its descendants, avoiding a separate recursive walk when child folders are expanded.
-- Results are held in a per-project cache capped at 50,000 entries and persisted in IntelliJ's project cache. Reopened projects show their last known values immediately while visible restored entries are refreshed in the background. Live entries expire after 10 minutes and are recalculated on their next request.
-- IntelliJ VFS events update cached ancestors incrementally when they provide exact size information (content changes, ordinary file creation/deletion, empty directories, and known subtree moves/renames). Ambiguous events invalidate only the affected paths and ancestors. The Project view refresh is debounced in both cases.
-- **Recalculate Folder Sizes** in the Project view context menu and Options → Appearance clears the cache on demand.
+- Results are held in a per-project cache capped at 50,000 entries and persisted in IntelliJ's project cache. Entries expire after 24 hours and are recalculated on their next request. Their last known values remain visible until the replacement metrics are ready.
+- IntelliJ VFS events update cached ancestors incrementally when they provide exact size information (content changes, ordinary file creation/deletion, empty directories, and known subtree moves/renames). Ambiguous events refresh only the affected paths and ancestors while continuing to display their last known values. This means opening a project or refreshing the Project view recalculates only paths whose changes IntelliJ detects. The Project view refresh is debounced in both cases.
+- **Recalculate Folder Sizes** in the Project view context menu and Options → Appearance clears the cache on demand; this is the only refresh that temporarily replaces existing values with `calculating…`.
 - **Size** in the Project view's Sort menu orders files, folders, and modules from largest to smallest. Module size is the combined recursive size of its content roots. Folders and modules move into place as their background calculations finish.
 - Unreadable entries do not abort a scan; the displayed result is marked `partial`.
 

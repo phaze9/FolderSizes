@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @State(name = "FolderSizesDirectoryMetrics", storages = @Storage(StoragePathMacros.CACHE_FILE))
 public final class DirectoryMetricsService
         implements Disposable, PersistentStateComponent<DirectoryMetricsState> {
-    private static final long MAX_CACHE_AGE_NANOS = Duration.ofMinutes(10).toNanos();
+    private static final long MAX_CACHE_AGE_NANOS = Duration.ofHours(24).toNanos();
     private static final int MAX_CACHE_ENTRIES = 50_000;
     private static final long REFRESH_DELAY_MILLIS = 150;
 
@@ -64,16 +64,12 @@ public final class DirectoryMetricsService
         long currentGeneration = generation.get();
         CacheEntry entry = cache.get(path);
         if (entry != null) {
-            if (entry.refreshRequired) {
+            if (entry.refreshRequired
+                    || System.nanoTime() - entry.createdAtNanos > MAX_CACHE_AGE_NANOS) {
+                cache.replace(path, entry, entry.withRefreshRequired());
                 scheduleScan(path, currentGeneration);
-                return entry.metrics;
             }
-            if (System.nanoTime() - entry.createdAtNanos <= MAX_CACHE_AGE_NANOS) {
-                return entry.metrics;
-            }
-        }
-        if (entry != null) {
-            cache.remove(path, entry);
+            return entry.metrics;
         }
         scheduleScan(path, currentGeneration);
         return null;
@@ -150,8 +146,12 @@ public final class DirectoryMetricsService
         }
 
         generation.incrementAndGet();
-        cache.keySet().removeIf(cached -> normalized.stream().anyMatch(changed ->
-                cached.startsWith(changed) || changed.startsWith(cached)));
+        cache.forEach((cached, entry) -> {
+            if (normalized.stream().anyMatch(changed ->
+                    cached.startsWith(changed) || changed.startsWith(cached))) {
+                cache.replace(cached, entry, entry.withRefreshRequired());
+            }
+        });
         scheduleProjectViewRefresh();
     }
 
@@ -315,7 +315,7 @@ public final class DirectoryMetricsService
         if (System.nanoTime() - entry.createdAtNanos <= MAX_CACHE_AGE_NANOS) {
             return entry;
         }
-        cache.remove(path, entry);
+        cache.replace(path, entry, entry.withRefreshRequired());
         return null;
     }
 
@@ -449,12 +449,15 @@ public final class DirectoryMetricsService
             }
             DirectoryMetricsState.RestoredEntry restored = entry == null ? null : entry.restore();
             if (restored != null) {
-                cache.put(restored.path(), new CacheEntry(restored.metrics(), now, true));
+                cache.put(restored.path(), new CacheEntry(restored.metrics(), now, false));
             }
         }
     }
 
     private record CacheEntry(
             DirectoryMetrics metrics, long createdAtNanos, boolean refreshRequired) {
+        private CacheEntry withRefreshRequired() {
+            return refreshRequired ? this : new CacheEntry(metrics, createdAtNanos, true);
+        }
     }
 }
