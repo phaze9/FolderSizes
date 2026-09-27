@@ -102,6 +102,37 @@ run `36295682434`, completed successfully in 3 minutes 8 seconds and published
 release `build-1.1`. The attached `folder-sizes-1.0.0.zip` was 18,392 bytes with
 SHA-256 `c31e99e75682d2662c4baa5528210004c7278055b0f30b710a6eb2a47a3e6374`.
 
+## JetBrains Marketplace
+
+Version `1.0.0` was submitted to JetBrains Marketplace on 2026-09-27 as
+**Folder Sizes**:
+
+- Marketplace page: <https://plugins.jetbrains.com/plugin/34576-folder-sizes>
+- Plugin ID: `com.github.phaze9.foldersizes`
+- Public vendor name: `Ivo Sele`
+- Vendor ID: `phaze9`
+- Vendor status: non-trader
+- License: MIT; the repository root `LICENSE` contains the matching license
+- Source and plugin homepage: <https://github.com/phaze9/FolderSizes>
+- Channel: Stable
+- Marketplace tag: Folder
+- Ads: none
+- Visibility after approval: public
+
+The submitted `build/distributions/folder-sizes-1.0.0.zip` has SHA-256
+`1051552692fc556eab3c2e0687595388a47beed8b73f8e37e2f626207be88a81`.
+Before upload, all tests passed and Plugin Verifier reported `Compatible` for
+IDEA builds `262.10968.63` and `263.5701.42`, with dynamic enable/disable
+eligibility.
+
+The first upload succeeded and is awaiting JetBrains's final checks. The upload
+confirmation said review should complete within two business days. Until that
+approval completes, the Marketplace page exists but the plugin is not public.
+
+Keep all email addresses out of tracked repository files and plugin metadata.
+The Marketplace vendor email is private. Direct public support and user
+communication to GitHub only.
+
 On 2026-09-27:
 
 - All 5 unit tests passed, including regression coverage that keeps folder names visible without duplicating names that IntelliJ already supplied as colored text.
