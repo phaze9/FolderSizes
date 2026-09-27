@@ -38,7 +38,7 @@ Do not install it into the application bundle itself.
 - `FolderSizesPluginListener` enables File Details on first installation and after a dynamic plugin re-enable. An application property records an active installation so ordinary IDE restarts do not override a user's later manual choice; plugin unload clears the property for the next activation.
 - `DirectoryMetricsService` owns the per-project cache, schedules background scans, coalesces Project view refreshes, handles manual invalidation, and removes descendant roots before combining multi-root metrics.
 - `DirectoryTreeScanner` performs a bottom-up NIO tree walk. A single scan publishes results for the requested root and its descendant directories.
-- `DirectoryChangeListener` converts VFS changes into affected paths. Changed subtrees and cached ancestors are invalidated; unrelated cached entries remain valid.
+- `DirectoryChangeListener` uses IntelliJ VFS event state to maintain cached totals incrementally when a change is exact: content-length changes, ordinary file creation/deletion, empty-directory creation, and cached subtree moves/renames. It snapshots deletions and moves in `before()` while the old `VirtualFile` state is still valid. Events without enough trustworthy information fall back to invalidating the affected subtree and cached ancestors.
 - `RecalculateFolderSizesAction` exposes **Recalculate Folder Sizes** in the Project view context menu and under **Options → Appearance**, and clears the cache.
 - `SortBySizeAction` exposes **Size** in the Project view's native **Sort By** menu. It installs `SizeComparator` for the active pane and restores IntelliJ's normal comparator when disabled.
 - `SizeComparator` orders known sizes largest-first, leaves names as the stable tie-breaker, and respects **Folders Always on Top**. Files use their `VirtualFile` length, folders use cached recursive metrics, and modules and module groups use the combined recursive size of their unique content roots.
@@ -51,6 +51,8 @@ Do not install it into the application bundle itself.
 - Entries expire after 10 minutes.
 - Concurrent scans are deduplicated when an existing ancestor scan already covers a requested directory.
 - A generation counter prevents results from an in-progress scan being published after a relevant VFS change.
+- Exact VFS deltas update complete, unsaturated ancestor entries in place. Any underflow, overflow, saturated value, partial result, symlink/special-file event, or unknown subtree contribution falls back to lazy recalculation rather than risking an incorrect total.
+- When a generation change makes an in-progress scan stale, completion still refreshes the Project view after removing the in-flight marker. This lets a visible node immediately request a replacement scan instead of remaining on `calculating…`.
 - Project view refreshes are debounced by 150 ms.
 - Missing metrics display `calculating…` until the background scan completes.
 - Sort-by-size requests missing folder and module metrics through the same background scan path. Unknown entries sort after known entries and move into place on the normal debounced Project view refresh.
@@ -84,6 +86,19 @@ The installable artifact is generated at:
 ```text
 build/distributions/folder-sizes-1.0.0.zip
 ```
+
+After every verified plugin code change, deploy the current ZIP to the user
+plugin directory rather than leaving IntelliJ on the previous build:
+
+```bash
+mkdir -p "$HOME/Library/Application Support/JetBrains/IntelliJIdea2026.2/plugins"
+/usr/bin/ditto -x -k build/distributions/folder-sizes-1.0.0.zip \
+  "$HOME/Library/Application Support/JetBrains/IntelliJIdea2026.2/plugins"
+```
+
+Verify the installed JAR byte-for-byte against the JAR inside the ZIP. Restart
+IntelliJ, or dynamically disable and re-enable the plugin, before expecting the
+running IDE to use the new classes.
 
 ## Automated GitHub releases
 
@@ -144,6 +159,8 @@ On 2026-09-27:
 - After adding the tree-structure provider and module-group node wrapper, all 10 unit tests passed. Plugin Verifier reported `Compatible` for IDEA builds `262.10968.63` and `263.5701.42`, with no internal API usage; dynamic enable/disable remained eligible. The new regression test verifies that nested content roots are excluded from combined metrics.
 - The rebuilt plugin was installed into the IntelliJ IDEA 2026.2 user-plugin directory. Its JAR matched the build output at SHA-256 `e9692a0f076468173418a5b9dcfd4f73d2d3051cb3c764aad9037826b4630013`.
 - After a full IntelliJ restart, the live `$HOME/Sites` Project view showed stats on the grouping rows, including `gewinnspiele-test` (29 dirs, 2,231 files, 212 MB), `kittybreeder` (420 dirs, 4,088 files, 49.8 MB), and `liv` (3,226 dirs, 36,628 files, 870 MB).
+- Incremental VFS cache synchronization was added while retaining the lazy bottom-up scan as the baseline and fallback. All 12 unit tests passed, and Plugin Verifier reported `Compatible` for IDEA builds `262.10968.63` and `263.5701.42`, with dynamic enable/disable eligibility.
+- The incremental build was deployed to the IDEA 2026.2 user-plugin directory and verified against the packaged JAR at SHA-256 `8865cdeca22b79b7f891c09ffa0398e926ed1d31e8763ed0811aa8360b988cde`. The distributable ZIP SHA-256 was `84cfae03f208622100ef48d66cb185a2ef76d569ddeaa9d19b6bfd585a7d4037`.
 
 After copying a new build into the user plugin directory, restart IntelliJ to load it.
 

@@ -10,9 +10,11 @@ import com.intellij.util.concurrency.AppExecutorUtil;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -140,6 +142,99 @@ public final class DirectoryMetricsService implements Disposable {
         scheduleProjectViewRefresh();
     }
 
+    /** Applies a file-content length change without discarding valid ancestor totals. */
+    void fileLengthChanged(Path file, long oldLength, long newLength) {
+        Path normalized = normalize(file);
+        if (normalized == null || oldLength < 0 || newLength < 0
+                || !isRelevant(Set.of(normalized))) {
+            return;
+        }
+
+        generation.incrementAndGet();
+        adjustCachedAncestors(normalized, 0, 0, newLength - oldLength);
+        scheduleProjectViewRefresh();
+    }
+
+    /** Adds a newly created file or known-empty directory to cached ancestors. */
+    void pathAdded(Path path, DirectoryMetrics contribution, @Nullable DirectoryMetrics ownMetrics) {
+        Path normalized = normalize(path);
+        if (normalized == null || !contribution.complete() || !isRelevant(Set.of(normalized))) {
+            return;
+        }
+
+        generation.incrementAndGet();
+        cache.keySet().removeIf(cached -> cached.startsWith(normalized));
+        adjustCachedAncestors(normalized,
+                contribution.directoryCount(), contribution.fileCount(), contribution.totalBytes());
+        if (ownMetrics != null) {
+            putBounded(normalized, ownMetrics, normalized);
+        }
+        scheduleProjectViewRefresh();
+    }
+
+    /** Removes a file or fully known directory subtree from cached ancestors. */
+    void pathRemoved(Path path, DirectoryMetrics contribution) {
+        Path normalized = normalize(path);
+        if (normalized == null || !contribution.complete() || !isRelevant(Set.of(normalized))) {
+            return;
+        }
+
+        generation.incrementAndGet();
+        cache.keySet().removeIf(cached -> cached.startsWith(normalized));
+        adjustCachedAncestors(normalized,
+                -contribution.directoryCount(), -contribution.fileCount(), -contribution.totalBytes());
+        scheduleProjectViewRefresh();
+    }
+
+    /** Moves cached subtree entries and transfers their contribution between ancestors. */
+    void pathMoved(Path oldPath, Path newPath, DirectoryMetrics contribution) {
+        Path normalizedOld = normalize(oldPath);
+        Path normalizedNew = normalize(newPath);
+        if (normalizedOld == null || normalizedNew == null || !contribution.complete()
+                || !isRelevant(Set.of(normalizedOld, normalizedNew))) {
+            return;
+        }
+
+        generation.incrementAndGet();
+        Map<Path, CacheEntry> movedEntries = new HashMap<>();
+        cache.forEach((cached, entry) -> {
+            if (cached.startsWith(normalizedOld)) {
+                movedEntries.put(cached, entry);
+            }
+        });
+        movedEntries.forEach(cache::remove);
+        movedEntries.forEach((cached, entry) -> {
+            Path relative = normalizedOld.relativize(cached);
+            cache.put(normalizedNew.resolve(relative).normalize(), entry);
+        });
+
+        adjustCachedAncestorsForMove(normalizedOld, normalizedNew, contribution);
+        scheduleProjectViewRefresh();
+    }
+
+    /** Returns the complete, fresh contribution of a file or directory to its parent. */
+    @Nullable
+    DirectoryMetrics knownContribution(VirtualFile file) {
+        if (!file.isValid() || !file.isInLocalFileSystem()
+                || file.is(com.intellij.openapi.vfs.VFileProperty.SYMLINK)
+                || file.is(com.intellij.openapi.vfs.VFileProperty.SPECIAL)) {
+            return null;
+        }
+        if (!file.isDirectory()) {
+            return new DirectoryMetrics(0, 1, file.getLength(), true);
+        }
+
+        Path path = localDirectoryPath(file);
+        if (path == null) {
+            return null;
+        }
+        CacheEntry entry = freshEntry(path);
+        if (entry == null || !entry.metrics.complete()) {
+            return null;
+        }
+        return entry.metrics.plus(new DirectoryMetrics(1, 0, 0, true));
+    }
+
     public void invalidateAll() {
         generation.incrementAndGet();
         cache.clear();
@@ -180,9 +275,9 @@ public final class DirectoryMetricsService implements Disposable {
                 synchronized (inFlightLock) {
                     inFlight.remove(root);
                 }
-                if (generation.get() == scanGeneration) {
-                    scheduleProjectViewRefresh();
-                }
+                // A stale scan publishes nothing. Refresh anyway so a visible
+                // node can request a replacement after the in-flight marker is removed.
+                scheduleProjectViewRefresh();
             }
         });
     }
@@ -196,6 +291,72 @@ public final class DirectoryMetricsService implements Disposable {
             cache.keySet().stream().findAny().ifPresent(cache::remove);
         }
         cache.put(directory, new CacheEntry(metrics, System.nanoTime()));
+    }
+
+    @Nullable
+    private CacheEntry freshEntry(Path path) {
+        CacheEntry entry = cache.get(path);
+        if (entry == null) {
+            return null;
+        }
+        if (System.nanoTime() - entry.createdAtNanos <= MAX_CACHE_AGE_NANOS) {
+            return entry;
+        }
+        cache.remove(path, entry);
+        return null;
+    }
+
+    private void adjustCachedAncestors(
+            Path changedPath, long directoryDelta, long fileDelta, long byteDelta) {
+        long now = System.nanoTime();
+        cache.forEach((cached, ignored) -> {
+            if (!cached.equals(changedPath) && changedPath.startsWith(cached)) {
+                cache.computeIfPresent(cached, (path, entry) -> adjustedEntry(
+                        entry, directoryDelta, fileDelta, byteDelta, now));
+            }
+        });
+    }
+
+    private void adjustCachedAncestorsForMove(
+            Path oldPath, Path newPath, DirectoryMetrics contribution) {
+        long now = System.nanoTime();
+        cache.forEach((cached, ignored) -> {
+            boolean containsOld = !cached.equals(oldPath) && oldPath.startsWith(cached);
+            boolean containsNew = !cached.equals(newPath) && newPath.startsWith(cached);
+            if (containsOld == containsNew) {
+                return;
+            }
+            long direction = containsNew ? 1 : -1;
+            cache.computeIfPresent(cached, (path, entry) -> adjustedEntry(
+                    entry,
+                    direction * contribution.directoryCount(),
+                    direction * contribution.fileCount(),
+                    direction * contribution.totalBytes(),
+                    now));
+        });
+    }
+
+    @Nullable
+    private static CacheEntry adjustedEntry(
+            CacheEntry entry,
+            long directoryDelta,
+            long fileDelta,
+            long byteDelta,
+            long createdAtNanos) {
+        if (!entry.metrics.complete()) {
+            return null;
+        }
+        DirectoryMetrics adjusted = entry.metrics.adjustedBy(directoryDelta, fileDelta, byteDelta);
+        return adjusted == null ? null : new CacheEntry(adjusted, createdAtNanos);
+    }
+
+    @Nullable
+    private static Path normalize(Path path) {
+        try {
+            return path.toAbsolutePath().normalize();
+        } catch (InvalidPathException | SecurityException exception) {
+            return null;
+        }
     }
 
     private boolean isRelevant(Set<Path> changedPaths) {
