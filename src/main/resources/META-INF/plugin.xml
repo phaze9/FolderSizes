@@ -1,7 +1,7 @@
-<idea-plugin>
+<idea-plugin url="https://github.com/phaze9/FolderSizes">
     <id>com.github.phaze9.foldersizes</id>
     <name>Folder Sizes</name>
-    <vendor>phaze9</vendor>
+    <vendor url="https://github.com/phaze9">Ivo Sele</vendor>
 
     <description><![CDATA[
         Shows recursive subdirectory count, file count, and total size next to directories in the Project view.
