@@ -31,3 +31,7 @@ The installable ZIP is produced under `build/distributions/`.
 `build-plugin.sh` removes the large `.gradle-user` cache when the build finishes,
 including after a failed or interrupted build, while preserving the plugin ZIP,
 `.gradle`, and `.intellijPlatform`.
+
+Every push to `main` is tested and built by GitHub Actions. After a successful
+build, the workflow creates a uniquely tagged GitHub release and attaches the
+installable ZIP. The workflow can also be run manually from the Actions page.

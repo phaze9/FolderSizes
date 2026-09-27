@@ -1,0 +1,60 @@
+name: Build and release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: gradle
+
+      - name: Build distributable ZIP
+        run: ./gradlew --no-daemon test buildPlugin
+
+      - name: Locate distributable ZIP
+        id: distribution
+        shell: bash
+        run: |
+          mapfile -t archives < <(find build/distributions -maxdepth 1 -type f -name '*.zip' -print)
+          if (( ${#archives[@]} != 1 )); then
+            echo "Expected exactly one distributable ZIP, found ${#archives[@]}." >&2
+            printf '%s\n' "${archives[@]}" >&2
+            exit 1
+          fi
+          echo "path=${archives[0]}" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "${archives[0]}")" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ZIP_PATH: ${{ steps.distribution.outputs.path }}
+          ZIP_NAME: ${{ steps.distribution.outputs.name }}
+        shell: bash
+        run: |
+          tag="build-${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
+          gh release create "$tag" "$ZIP_PATH" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Folder Sizes build ${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}" \
+            --notes "Automated successful build of commit \`${GITHUB_SHA}\`. Download and install \`${ZIP_NAME}\` from the assets below." \
+            --latest
