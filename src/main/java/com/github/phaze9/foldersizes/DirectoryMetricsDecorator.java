@@ -24,14 +24,24 @@ public final class DirectoryMetricsDecorator implements ProjectViewNodeDecorator
 
         DirectoryMetrics metrics = service.getOrSchedule(file);
         if (metrics == null) {
-            data.addText("  calculating…", SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES);
+            appendSuffix(data, "  calculating…");
         } else {
-            data.addText("  " + MetricFormatter.format(metrics), SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES);
+            appendSuffix(data, "  " + MetricFormatter.format(metrics));
             if (!metrics.complete()) {
                 String existing = data.getTooltip();
                 String warning = "Folder metrics are partial because some entries could not be read.";
                 data.setTooltip(existing == null || existing.isBlank() ? warning : existing + "\n" + warning);
             }
         }
+    }
+
+    static void appendSuffix(PresentationData data, String suffix) {
+        if (data.getColoredText().isEmpty()) {
+            String name = data.getPresentableText();
+            if (name != null) {
+                data.addText(name, SimpleTextAttributes.REGULAR_ATTRIBUTES);
+            }
+        }
+        data.addText(suffix, SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES);
     }
 }

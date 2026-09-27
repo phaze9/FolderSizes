@@ -30,7 +30,7 @@ Do not install it into the application bundle itself.
 
 ## Architecture
 
-- `DirectoryMetricsDecorator` adds the Project view suffix and never performs disk I/O on the UI thread.
+- `DirectoryMetricsDecorator` preserves the node's original name as the first colored-text fragment, then adds the Project view suffix; it never performs disk I/O on the UI thread.
 - `DirectoryMetricsService` owns the per-project cache, schedules background scans, coalesces Project view refreshes, and handles manual invalidation.
 - `DirectoryTreeScanner` performs a bottom-up NIO tree walk. A single scan publishes results for the requested root and its descendant directories.
 - `DirectoryChangeListener` converts VFS changes into affected paths. Changed subtrees and cached ancestors are invalidated; unrelated cached entries remain valid.
@@ -67,9 +67,9 @@ build/distributions/folder-sizes-1.0.0.zip
 
 On 2026-09-27:
 
-- All 3 unit tests passed.
+- All 5 unit tests passed, including regression coverage that keeps folder names visible without duplicating names that IntelliJ already supplied as colored text.
 - JetBrains Plugin Verifier reported `Compatible` for IDEA builds `262.10968.63` and `263.5701.42`.
-- The installed JAR was checked byte-for-byte against the JAR inside the distribution ZIP.
+- The rebuilt plugin was installed into the IntelliJ IDEA 2026.2 user-plugin directory, and the installed JAR was checked byte-for-byte against the build output.
 
 After copying a new build into the user plugin directory, restart IntelliJ to load it.
 
