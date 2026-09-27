@@ -24,7 +24,10 @@ The project targets IntelliJ IDEA 2026.2 (build 262) and requires Java 25 and Gr
 ```bash
 ./gradlew test
 ./gradlew runIde
-./gradlew buildPlugin
+./build-plugin.sh
 ```
 
 The installable ZIP is produced under `build/distributions/`.
+`build-plugin.sh` removes the large `.gradle-user` cache when the build finishes,
+including after a failed or interrupted build, while preserving the plugin ZIP,
+`.gradle`, and `.intellijPlatform`.

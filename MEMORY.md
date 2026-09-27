@@ -54,10 +54,21 @@ Normal commands:
 
 ```bash
 ./gradlew test
-./gradlew buildPlugin
+./build-plugin.sh
 ./gradlew verifyPlugin
 ./gradlew runIde
 ```
+
+Use `build-plugin.sh` for distributable builds. It runs `buildPlugin` with
+`.gradle-user` as an isolated Gradle user home and removes that directory when
+the build exits, including after failures or interruptions. It deliberately
+preserves `.gradle/`, `.intellijPlatform/`, and the ZIP under
+`build/distributions/`.
+
+This cleanup is necessary because IntelliJ platform dependencies previously
+expanded `.gradle-user` to roughly 12 GiB (about 13 GB decimal), including two
+downloaded IDEA images and their transformed installations. The plugin itself
+remained small: about 52 KB of source and an 18–20 KB distributable ZIP.
 
 The installable artifact is generated at:
 
