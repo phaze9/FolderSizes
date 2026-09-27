@@ -7,6 +7,14 @@
         Shows recursive subdirectory count, file count, and total size next to directories in the Project view.
     ]]></description>
 
+    <change-notes><![CDATA[
+        <ul>
+            <li>Updates cached folder metrics incrementally after file-system changes.</li>
+            <li>Persists folder metrics across project opens.</li>
+            <li>Keeps existing metrics visible while background refreshes run.</li>
+        </ul>
+    ]]></change-notes>
+
     <depends>com.intellij.modules.platform</depends>
 
     <extensions defaultExtensionNs="com.intellij">
