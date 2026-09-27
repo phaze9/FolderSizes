@@ -2,13 +2,14 @@
 
 ## Purpose
 
-FolderSizes is an IntelliJ Platform plugin that decorates local directories in the Project view with recursive metrics:
+FolderSizes is an IntelliJ Platform plugin that decorates local directories and module grouping nodes in the Project view with recursive metrics:
 
 ```text
 src  12 dirs, 84 files, 1.27 MB
 ```
 
 Directory and file counts include all descendants. Symbolic links are counted as files and are not followed.
+Module metrics combine the recursive metrics of all unique module content roots.
 
 ## Repository and target
 
@@ -30,7 +31,7 @@ Do not install it into the application bundle itself.
 
 ## Architecture
 
-- `DirectoryMetricsDecorator` preserves the node's original name as the first colored-text fragment, then adds the Project view suffix; it never performs disk I/O on the UI thread.
+- `DirectoryMetricsDecorator` preserves the node's original name as the first colored-text fragment, then adds the Project view suffix; it never performs disk I/O on the UI thread. Local directory nodes use their cached recursive metrics, while module grouping nodes combine the metrics of all content roots.
 - Folder metrics are shown only while IntelliJ's **File Details** option is enabled. That action is backed by `UISettings.showInplaceComments` in IDEA 2026.2.3.
 - `FolderSizesPluginListener` enables File Details on first installation and after a dynamic plugin re-enable. An application property records an active installation so ordinary IDE restarts do not override a user's later manual choice; plugin unload clears the property for the next activation.
 - `DirectoryMetricsService` owns the per-project cache, schedules background scans, coalesces Project view refreshes, and handles manual invalidation.
@@ -51,6 +52,7 @@ Do not install it into the application bundle itself.
 - Project view refreshes are debounced by 150 ms.
 - Missing metrics display `calculating…` until the background scan completes.
 - Sort-by-size requests missing folder and module metrics through the same background scan path. Unknown entries sort after known entries and move into place on the normal debounced Project view refresh.
+- Module decoration and size sorting share `DirectoryMetricsService.getCombinedMetricsOrSchedule`, so module counts, total size, loading state, and partial status are derived from the same content-root results.
 - Unreadable paths do not abort the entire walk; affected totals are labeled `partial`.
 
 ## Build and verification
@@ -104,6 +106,7 @@ On 2026-09-27:
 - JetBrains Plugin Verifier reported `Compatible` for IDEA builds `262.10968.63` and `263.5701.42`.
 - After tying folder metrics to File Details and adding automatic activation, `test buildPlugin` passed and Plugin Verifier again reported `Compatible` for both builds with no plugin defects or API warnings. The plugin remained eligible for dynamic enable/disable without an IDE restart.
 - After adding size sorting for files, folders, and modules, all 7 unit tests and `buildPlugin` passed. Plugin Verifier reported `Compatible` for IDEA builds `262.10968.63` and `263.5701.42`, with no internal or experimental API warnings; dynamic enable/disable remained eligible.
+- After adding recursive stats to module grouping nodes, all 9 unit tests passed. Plugin Verifier reported `Compatible` for IDEA builds `262.10968.63` and `263.5701.42`; dynamic enable/disable remained eligible. New aggregation coverage verifies count/size summation, partial-status propagation, and saturation at `Long.MAX_VALUE`.
 - The rebuilt plugin was installed into the IntelliJ IDEA 2026.2 user-plugin directory, and the installed JAR was checked byte-for-byte against the build output.
 
 After copying a new build into the user plugin directory, restart IntelliJ to load it.

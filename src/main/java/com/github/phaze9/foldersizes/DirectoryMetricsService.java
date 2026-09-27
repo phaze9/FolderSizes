@@ -77,20 +77,24 @@ public final class DirectoryMetricsService implements Disposable {
 
     @Nullable
     Long getCombinedSizeOrSchedule(Collection<VirtualFile> roots) {
-        long totalBytes = 0;
-        boolean complete = true;
+        DirectoryMetrics metrics = getCombinedMetricsOrSchedule(roots);
+        return metrics == null ? null : metrics.totalBytes();
+    }
+
+    @Nullable
+    DirectoryMetrics getCombinedMetricsOrSchedule(Collection<VirtualFile> roots) {
+        DirectoryMetrics combined = new DirectoryMetrics(0, 0, 0, true);
+        boolean available = true;
         Set<VirtualFile> uniqueRoots = new HashSet<>(roots);
         for (VirtualFile root : uniqueRoots) {
-            Long size = getSizeOrSchedule(root);
-            if (size == null) {
-                complete = false;
-            } else if (Long.MAX_VALUE - totalBytes < size) {
-                totalBytes = Long.MAX_VALUE;
+            DirectoryMetrics metrics = getOrSchedule(root);
+            if (metrics == null) {
+                available = false;
             } else {
-                totalBytes += size;
+                combined = combined.plus(metrics);
             }
         }
-        return complete ? totalBytes : null;
+        return available ? combined : null;
     }
 
     void pathsChanged(Collection<Path> changedPaths) {

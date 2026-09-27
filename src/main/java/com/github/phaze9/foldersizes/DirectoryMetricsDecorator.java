@@ -4,7 +4,9 @@ import com.intellij.ide.projectView.PresentationData;
 import com.intellij.ide.projectView.ProjectViewNode;
 import com.intellij.ide.projectView.ProjectViewNodeDecorator;
 import com.intellij.ide.ui.UISettings;
+import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.roots.ModuleRootManager;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.ui.SimpleTextAttributes;
 import org.jetbrains.annotations.NotNull;
@@ -22,12 +24,21 @@ public final class DirectoryMetricsDecorator implements ProjectViewNodeDecorator
             return;
         }
 
-        VirtualFile file = node.getVirtualFile();
-        if (file == null || !file.isDirectory()) {
-            return;
+        DirectoryMetrics metrics;
+        if (node.getValue() instanceof Module module) {
+            if (module.isDisposed()) {
+                return;
+            }
+            metrics = service.getCombinedMetricsOrSchedule(
+                    java.util.List.of(ModuleRootManager.getInstance(module).getContentRoots()));
+        } else {
+            VirtualFile file = node.getVirtualFile();
+            if (file == null || !file.isDirectory()) {
+                return;
+            }
+            metrics = service.getOrSchedule(file);
         }
 
-        DirectoryMetrics metrics = service.getOrSchedule(file);
         if (metrics == null) {
             appendSuffix(data, "  calculating…");
         } else {

@@ -1,12 +1,13 @@
 # Folder Sizes
 
-An IntelliJ Platform plugin that adds recursive directory details to every local folder in the **Project** view:
+An IntelliJ Platform plugin that adds recursive directory details to every local folder and module grouping node in the **Project** view:
 
 ```text
 src  12 dirs, 84 files, 1.27 MB
 ```
 
 The counts include all descendant directories and files. Symbolic links are counted as files and are not followed.
+Module details combine the recursive metrics of all the module's content roots.
 Folder details follow the Project view's **File Details** toggle. The plugin enables
 File Details automatically when it is first installed or re-enabled; turning File
 Details off afterwards also hides the folder details.

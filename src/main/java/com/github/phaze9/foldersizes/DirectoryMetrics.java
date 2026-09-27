@@ -6,4 +6,16 @@ record DirectoryMetrics(long directoryCount, long fileCount, long totalBytes, bo
             throw new IllegalArgumentException("Directory metrics cannot be negative");
         }
     }
+
+    DirectoryMetrics plus(DirectoryMetrics other) {
+        return new DirectoryMetrics(
+                saturatedAdd(directoryCount, other.directoryCount),
+                saturatedAdd(fileCount, other.fileCount),
+                saturatedAdd(totalBytes, other.totalBytes),
+                complete && other.complete);
+    }
+
+    private static long saturatedAdd(long left, long right) {
+        return Long.MAX_VALUE - left < right ? Long.MAX_VALUE : left + right;
+    }
 }
