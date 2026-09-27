@@ -3,6 +3,7 @@ package com.github.phaze9.foldersizes;
 import com.intellij.ide.projectView.PresentationData;
 import com.intellij.ide.projectView.ProjectViewNode;
 import com.intellij.ide.projectView.ProjectViewNodeDecorator;
+import com.intellij.ide.ui.UISettings;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.ui.SimpleTextAttributes;
@@ -17,6 +18,10 @@ public final class DirectoryMetricsDecorator implements ProjectViewNodeDecorator
 
     @Override
     public void decorate(@NotNull ProjectViewNode<?> node, @NotNull PresentationData data) {
+        if (!UISettings.getInstance().getShowInplaceComments()) {
+            return;
+        }
+
         VirtualFile file = node.getVirtualFile();
         if (file == null || !file.isDirectory()) {
             return;

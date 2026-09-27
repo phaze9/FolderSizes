@@ -14,6 +14,14 @@
         <projectViewNodeDecorator implementation="com.github.phaze9.foldersizes.DirectoryMetricsDecorator"/>
     </extensions>
 
+    <applicationListeners>
+        <listener class="com.github.phaze9.foldersizes.FolderSizesPluginListener"
+                  topic="com.intellij.ide.AppLifecycleListener"
+                  activeInHeadlessMode="false"/>
+        <listener class="com.github.phaze9.foldersizes.FolderSizesPluginListener"
+                  topic="com.intellij.ide.plugins.DynamicPluginListener"/>
+    </applicationListeners>
+
     <projectListeners>
         <listener class="com.github.phaze9.foldersizes.DirectoryChangeListener"
                   topic="com.intellij.openapi.vfs.newvfs.BulkFileListener"/>
