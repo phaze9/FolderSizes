@@ -76,6 +76,23 @@ The installable artifact is generated at:
 build/distributions/folder-sizes-1.0.0.zip
 ```
 
+## Automated GitHub releases
+
+`.github/workflows/release.yml` runs on every push to `main` and can also be
+started manually. It sets up Java 25, runs `./gradlew --no-daemon test
+buildPlugin`, requires exactly one ZIP under `build/distributions/`, and only
+then creates a GitHub release with that ZIP attached.
+
+Each successful run uses a unique `build-<run number>.<run attempt>` tag so a
+rerun does not overwrite an earlier release. The release targets the exact
+built commit and is marked as the latest release. Publishing uses the workflow's
+`GITHUB_TOKEN` with `contents: write`; no separate release credential is needed.
+
+The automation was introduced by commit `90d1740`. Its first run, GitHub Actions
+run `36295682434`, completed successfully in 3 minutes 8 seconds and published
+release `build-1.1`. The attached `folder-sizes-1.0.0.zip` was 18,392 bytes with
+SHA-256 `c31e99e75682d2662c4baa5528210004c7278055b0f30b710a6eb2a47a3e6374`.
+
 On 2026-09-27:
 
 - All 5 unit tests passed, including regression coverage that keeps folder names visible without duplicating names that IntelliJ already supplied as colored text.
