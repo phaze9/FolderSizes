@@ -36,7 +36,7 @@ Do not install it into the application bundle itself.
 - IntelliJ does not invoke `ProjectViewNodeDecorator` for its synthetic `ModuleGroupNode` rows. `ModuleGroupMetricsTreeStructureProvider` therefore replaces `ProjectViewModuleGroupNode` instances with `MetricsModuleGroupNode`; that wrapper appends the same shared metrics suffix from its `update()` method. The provider is registered through the supported project-level `com.intellij.treeStructureProvider` extension point.
 - Folder metrics are shown only while IntelliJ's **File Details** option is enabled. That action is backed by `UISettings.showInplaceComments` in IDEA 2026.2.3.
 - `FolderSizesPluginListener` enables File Details on first installation and after a dynamic plugin re-enable. An application property records an active installation so ordinary IDE restarts do not override a user's later manual choice; plugin unload clears the property for the next activation.
-- `DirectoryMetricsService` owns the per-project cache, schedules background scans, coalesces Project view refreshes, handles manual invalidation, and removes descendant roots before combining multi-root metrics.
+- `DirectoryMetricsService` owns the per-project cache, persists it through IntelliJ's project cache storage, schedules background scans, coalesces Project view refreshes, handles manual invalidation, and removes descendant roots before combining multi-root metrics. `DirectoryMetricsState` is the XML-serializable snapshot model.
 - `DirectoryTreeScanner` performs a bottom-up NIO tree walk. A single scan publishes results for the requested root and its descendant directories.
 - `DirectoryChangeListener` uses IntelliJ VFS event state to maintain cached totals incrementally when a change is exact: content-length changes, ordinary file creation/deletion, empty-directory creation, and cached subtree moves/renames. It snapshots deletions and moves in `before()` while the old `VirtualFile` state is still valid. Events without enough trustworthy information fall back to invalidating the affected subtree and cached ancestors.
 - `RecalculateFolderSizesAction` exposes **Recalculate Folder Sizes** in the Project view context menu and under **Options → Appearance**, and clears the cache.
@@ -48,7 +48,9 @@ Do not install it into the application bundle itself.
 
 - Cache scope is one IntelliJ project.
 - Maximum cache size is 50,000 directory entries.
-- Entries expire after 10 minutes.
+- IntelliJ persists the bounded cache in its project cache storage. On project reopen, saved metrics display immediately and each visible restored entry schedules a background refresh on first use.
+- Restored entries are display-only until refreshed: they are not accepted as exact subtree contributions for move, rename, or delete arithmetic. If such a VFS event arrives first, the listener falls back to invalidation and recalculation.
+- Fresh in-memory entries expire after 10 minutes. Expiry remains a correctness backstop for missed, ambiguous, or external filesystem changes; it is not a scheduled refresh.
 - Concurrent scans are deduplicated when an existing ancestor scan already covers a requested directory.
 - A generation counter prevents results from an in-progress scan being published after a relevant VFS change.
 - Exact VFS deltas update complete, unsaturated ancestor entries in place. Any underflow, overflow, saturated value, partial result, symlink/special-file event, or unknown subtree contribution falls back to lazy recalculation rather than risking an incorrect total.
@@ -161,6 +163,9 @@ On 2026-09-27:
 - After a full IntelliJ restart, the live `$HOME/Sites` Project view showed stats on the grouping rows, including `gewinnspiele-test` (29 dirs, 2,231 files, 212 MB), `kittybreeder` (420 dirs, 4,088 files, 49.8 MB), and `liv` (3,226 dirs, 36,628 files, 870 MB).
 - Incremental VFS cache synchronization was added while retaining the lazy bottom-up scan as the baseline and fallback. All 12 unit tests passed, and Plugin Verifier reported `Compatible` for IDEA builds `262.10968.63` and `263.5701.42`, with dynamic enable/disable eligibility.
 - The incremental build was deployed to the IDEA 2026.2 user-plugin directory and verified against the packaged JAR at SHA-256 `8865cdeca22b79b7f891c09ffa0398e926ed1d31e8763ed0811aa8360b988cde`. The distributable ZIP SHA-256 was `84cfae03f208622100ef48d66cb185a2ef76d569ddeaa9d19b6bfd585a7d4037`.
+- Project-scoped cache persistence was added with stale-while-revalidate behavior. Reopened projects show saved metrics immediately, visible entries refresh in the background, and unrefreshed restored values are excluded from exact VFS subtree arithmetic. IntelliJ XML serialization has a direct round-trip regression test.
+- All 16 unit tests passed. Plugin Verifier reported `Compatible` for IDEA builds `262.10968.63` and `263.5701.42`, with dynamic enable/disable eligibility.
+- The persistent-cache build was deployed to the IDEA 2026.2 user-plugin directory. Its installed JAR matched the packaged JAR at SHA-256 `808e87178b00a744aff4d41bd96f2f9714e17930911f2a40752898101f216984`; the distributable ZIP SHA-256 was `2eb86e9e8e5852ea755bb0145b9a9805a1fb51911d5735efc7e170bd6885cbbb`.
 
 After copying a new build into the user plugin directory, restart IntelliJ to load it.
 

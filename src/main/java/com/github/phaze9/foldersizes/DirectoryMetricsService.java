@@ -3,10 +3,15 @@ package com.github.phaze9.foldersizes;
 import com.intellij.ide.projectView.ProjectView;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.components.PersistentStateComponent;
 import com.intellij.openapi.components.Service;
+import com.intellij.openapi.components.State;
+import com.intellij.openapi.components.Storage;
+import com.intellij.openapi.components.StoragePathMacros;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.concurrency.AppExecutorUtil;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
@@ -14,6 +19,7 @@ import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -25,7 +31,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Service(Service.Level.PROJECT)
-public final class DirectoryMetricsService implements Disposable {
+@State(name = "FolderSizesDirectoryMetrics", storages = @Storage(StoragePathMacros.CACHE_FILE))
+public final class DirectoryMetricsService
+        implements Disposable, PersistentStateComponent<DirectoryMetricsState> {
     private static final long MAX_CACHE_AGE_NANOS = Duration.ofMinutes(10).toNanos();
     private static final int MAX_CACHE_ENTRIES = 50_000;
     private static final long REFRESH_DELAY_MILLIS = 150;
@@ -55,9 +63,14 @@ public final class DirectoryMetricsService implements Disposable {
 
         long currentGeneration = generation.get();
         CacheEntry entry = cache.get(path);
-        if (entry != null
-                && System.nanoTime() - entry.createdAtNanos <= MAX_CACHE_AGE_NANOS) {
-            return entry.metrics;
+        if (entry != null) {
+            if (entry.refreshRequired) {
+                scheduleScan(path, currentGeneration);
+                return entry.metrics;
+            }
+            if (System.nanoTime() - entry.createdAtNanos <= MAX_CACHE_AGE_NANOS) {
+                return entry.metrics;
+            }
         }
         if (entry != null) {
             cache.remove(path, entry);
@@ -290,13 +303,13 @@ public final class DirectoryMetricsService implements Disposable {
             // The explicitly requested result is more useful than an arbitrary descendant entry.
             cache.keySet().stream().findAny().ifPresent(cache::remove);
         }
-        cache.put(directory, new CacheEntry(metrics, System.nanoTime()));
+        cache.put(directory, new CacheEntry(metrics, System.nanoTime(), false));
     }
 
     @Nullable
     private CacheEntry freshEntry(Path path) {
         CacheEntry entry = cache.get(path);
-        if (entry == null) {
+        if (entry == null || entry.refreshRequired) {
             return null;
         }
         if (System.nanoTime() - entry.createdAtNanos <= MAX_CACHE_AGE_NANOS) {
@@ -347,7 +360,9 @@ public final class DirectoryMetricsService implements Disposable {
             return null;
         }
         DirectoryMetrics adjusted = entry.metrics.adjustedBy(directoryDelta, fileDelta, byteDelta);
-        return adjusted == null ? null : new CacheEntry(adjusted, createdAtNanos);
+        return adjusted == null
+                ? null
+                : new CacheEntry(adjusted, createdAtNanos, entry.refreshRequired);
     }
 
     @Nullable
@@ -403,13 +418,43 @@ public final class DirectoryMetricsService implements Disposable {
     @Override
     public void dispose() {
         generation.incrementAndGet();
-        cache.clear();
         sizeSortedPanes.clear();
         synchronized (inFlightLock) {
             inFlight.clear();
         }
     }
 
-    private record CacheEntry(DirectoryMetrics metrics, long createdAtNanos) {
+    @Override
+    public @NotNull DirectoryMetricsState getState() {
+        DirectoryMetricsState state = new DirectoryMetricsState();
+        cache.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey(Comparator.comparing(Path::toString)))
+                .limit(MAX_CACHE_ENTRIES)
+                .forEach(entry -> state.entries.add(
+                        new DirectoryMetricsState.Entry(entry.getKey(), entry.getValue().metrics)));
+        return state;
+    }
+
+    @Override
+    public void loadState(@NotNull DirectoryMetricsState state) {
+        generation.incrementAndGet();
+        cache.clear();
+        long now = System.nanoTime();
+        if (state.entries == null) {
+            return;
+        }
+        for (DirectoryMetricsState.Entry entry : state.entries) {
+            if (cache.size() >= MAX_CACHE_ENTRIES) {
+                break;
+            }
+            DirectoryMetricsState.RestoredEntry restored = entry == null ? null : entry.restore();
+            if (restored != null) {
+                cache.put(restored.path(), new CacheEntry(restored.metrics(), now, true));
+            }
+        }
+    }
+
+    private record CacheEntry(
+            DirectoryMetrics metrics, long createdAtNanos, boolean refreshRequired) {
     }
 }
