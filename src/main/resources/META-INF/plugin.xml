@@ -1,0 +1,30 @@
+<idea-plugin>
+    <id>com.github.phaze9.foldersizes</id>
+    <name>Folder Sizes</name>
+    <vendor>phaze9</vendor>
+
+    <description><![CDATA[
+        Shows recursive subdirectory count, file count, and total size next to directories in the Project view.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <projectService serviceImplementation="com.github.phaze9.foldersizes.DirectoryMetricsService"/>
+        <projectViewNodeDecorator implementation="com.github.phaze9.foldersizes.DirectoryMetricsDecorator"/>
+    </extensions>
+
+    <projectListeners>
+        <listener class="com.github.phaze9.foldersizes.DirectoryChangeListener"
+                  topic="com.intellij.openapi.vfs.newvfs.BulkFileListener"/>
+    </projectListeners>
+
+    <actions>
+        <action id="FolderSizes.Recalculate"
+                class="com.github.phaze9.foldersizes.RecalculateFolderSizesAction"
+                text="Recalculate Folder Sizes"
+                description="Discard cached folder metrics and calculate them again">
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+        </action>
+    </actions>
+</idea-plugin>
