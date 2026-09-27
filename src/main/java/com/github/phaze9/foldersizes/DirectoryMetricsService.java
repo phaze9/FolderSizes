@@ -29,6 +29,7 @@ public final class DirectoryMetricsService implements Disposable {
     private final Project project;
     private final ConcurrentHashMap<Path, CacheEntry> cache = new ConcurrentHashMap<>();
     private final Set<Path> inFlight = new HashSet<>();
+    private final Set<String> sizeSortedPanes = ConcurrentHashMap.newKeySet();
     private final Object inFlightLock = new Object();
     private final AtomicLong generation = new AtomicLong();
     private final AtomicBoolean refreshScheduled = new AtomicBoolean();
@@ -61,6 +62,37 @@ public final class DirectoryMetricsService implements Disposable {
         return null;
     }
 
+    @Nullable
+    Long getSizeOrSchedule(VirtualFile file) {
+        if (!file.isValid() || !file.isInLocalFileSystem()) {
+            return null;
+        }
+        if (!file.isDirectory()) {
+            return file.getLength();
+        }
+
+        DirectoryMetrics metrics = getOrSchedule(file);
+        return metrics == null ? null : metrics.totalBytes();
+    }
+
+    @Nullable
+    Long getCombinedSizeOrSchedule(Collection<VirtualFile> roots) {
+        long totalBytes = 0;
+        boolean complete = true;
+        Set<VirtualFile> uniqueRoots = new HashSet<>(roots);
+        for (VirtualFile root : uniqueRoots) {
+            Long size = getSizeOrSchedule(root);
+            if (size == null) {
+                complete = false;
+            } else if (Long.MAX_VALUE - totalBytes < size) {
+                totalBytes = Long.MAX_VALUE;
+            } else {
+                totalBytes += size;
+            }
+        }
+        return complete ? totalBytes : null;
+    }
+
     void pathsChanged(Collection<Path> changedPaths) {
         if (changedPaths.isEmpty()) {
             return;
@@ -86,6 +118,18 @@ public final class DirectoryMetricsService implements Disposable {
         generation.incrementAndGet();
         cache.clear();
         scheduleProjectViewRefresh();
+    }
+
+    boolean isSizeSortingEnabled(String paneId) {
+        return sizeSortedPanes.contains(paneId);
+    }
+
+    void setSizeSortingEnabled(String paneId, boolean enabled) {
+        if (enabled) {
+            sizeSortedPanes.add(paneId);
+        } else {
+            sizeSortedPanes.remove(paneId);
+        }
     }
 
     private void scheduleScan(Path root, long scanGeneration) {
@@ -173,6 +217,7 @@ public final class DirectoryMetricsService implements Disposable {
     public void dispose() {
         generation.incrementAndGet();
         cache.clear();
+        sizeSortedPanes.clear();
         synchronized (inFlightLock) {
             inFlight.clear();
         }

@@ -37,6 +37,8 @@ Do not install it into the application bundle itself.
 - `DirectoryTreeScanner` performs a bottom-up NIO tree walk. A single scan publishes results for the requested root and its descendant directories.
 - `DirectoryChangeListener` converts VFS changes into affected paths. Changed subtrees and cached ancestors are invalidated; unrelated cached entries remain valid.
 - `RecalculateFolderSizesAction` exposes **Recalculate Folder Sizes** in the Project view context menu and clears the cache.
+- `SortBySizeAction` exposes **Sort by Size** in the Project view's native Sort menu. It installs `SizeComparator` for the active pane and restores IntelliJ's normal comparator when disabled.
+- `SizeComparator` orders known sizes largest-first, leaves names as the stable tie-breaker, and respects **Folders Always on Top**. Files use their `VirtualFile` length, folders use cached recursive metrics, and modules use the combined recursive size of all content roots.
 - `MetricFormatter` formats decimal units (`KB`, `MB`, and so on) and singular/plural counts.
 
 ## Cache and recalculation rules
@@ -48,6 +50,7 @@ Do not install it into the application bundle itself.
 - A generation counter prevents results from an in-progress scan being published after a relevant VFS change.
 - Project view refreshes are debounced by 150 ms.
 - Missing metrics display `calculating…` until the background scan completes.
+- Sort-by-size requests missing folder and module metrics through the same background scan path. Unknown entries sort after known entries and move into place on the normal debounced Project view refresh.
 - Unreadable paths do not abort the entire walk; affected totals are labeled `partial`.
 
 ## Build and verification
@@ -100,6 +103,7 @@ On 2026-09-27:
 - All 5 unit tests passed, including regression coverage that keeps folder names visible without duplicating names that IntelliJ already supplied as colored text.
 - JetBrains Plugin Verifier reported `Compatible` for IDEA builds `262.10968.63` and `263.5701.42`.
 - After tying folder metrics to File Details and adding automatic activation, `test buildPlugin` passed and Plugin Verifier again reported `Compatible` for both builds with no plugin defects or API warnings. The plugin remained eligible for dynamic enable/disable without an IDE restart.
+- After adding size sorting for files, folders, and modules, all 7 unit tests and `buildPlugin` passed. Plugin Verifier reported `Compatible` for IDEA builds `262.10968.63` and `263.5701.42`, with no internal or experimental API warnings; dynamic enable/disable remained eligible.
 - The rebuilt plugin was installed into the IntelliJ IDEA 2026.2 user-plugin directory, and the installed JAR was checked byte-for-byte against the build output.
 
 After copying a new build into the user plugin directory, restart IntelliJ to load it.
