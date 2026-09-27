@@ -15,7 +15,7 @@ Module metrics combine the recursive metrics of all unique module content roots.
 
 - GitHub: <https://github.com/phaze9/FolderSizes>
 - Plugin ID: `com.github.phaze9.foldersizes`
-- Current version: `1.0.0`
+- Current version: `1.0.1`
 - IntelliJ target: IDEA 2026.2.3, build 262
 - Java toolchain: 25
 - Gradle wrapper: 9.1.0
@@ -87,7 +87,7 @@ remained small: about 52 KB of source and an 18–20 KB distributable ZIP.
 The installable artifact is generated at:
 
 ```text
-build/distributions/folder-sizes-1.0.0.zip
+build/distributions/folder-sizes-1.0.1.zip
 ```
 
 After every verified plugin code change, deploy the current ZIP to the user
@@ -95,7 +95,7 @@ plugin directory rather than leaving IntelliJ on the previous build:
 
 ```bash
 mkdir -p "$HOME/Library/Application Support/JetBrains/IntelliJIdea2026.2/plugins"
-/usr/bin/ditto -x -k build/distributions/folder-sizes-1.0.0.zip \
+/usr/bin/ditto -x -k build/distributions/folder-sizes-1.0.1.zip \
   "$HOME/Library/Application Support/JetBrains/IntelliJIdea2026.2/plugins"
 ```
 
@@ -143,9 +143,16 @@ Before upload, all tests passed and Plugin Verifier reported `Compatible` for
 IDEA builds `262.10968.63` and `263.5701.42`, with dynamic enable/disable
 eligibility.
 
-The first upload succeeded and is awaiting JetBrains's final checks. The upload
-confirmation said review should complete within two business days. Until that
-approval completes, the Marketplace page exists but the plugin is not public.
+The first upload succeeded and is awaiting JetBrains's final checks. Version
+`1.0.1` was then uploaded once on 2026-09-27 to the Stable channel with public
+visibility after approval. Its ZIP has SHA-256
+`dc37105de075769e7a1c8cc9f8e2433ce3d60cd7557f8ea2fd3f751e19a83541`.
+Before upload, all 16 tests passed and Plugin Verifier reported `Compatible` for
+IDEA builds `262.10968.63` and `263.5701.42`, with dynamic enable/disable
+eligibility. Marketplace confirmed **Upload Successful** and now reports that
+the updates are under review; its confirmation said the additional checks can
+take up to two business days. Until approval completes, the Marketplace page
+exists but the plugin is not public.
 
 Keep all email addresses out of tracked repository files and plugin metadata.
 The Marketplace vendor email is private. Direct public support and user
