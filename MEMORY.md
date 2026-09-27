@@ -37,8 +37,8 @@ Do not install it into the application bundle itself.
 - `DirectoryMetricsService` owns the per-project cache, schedules background scans, coalesces Project view refreshes, and handles manual invalidation.
 - `DirectoryTreeScanner` performs a bottom-up NIO tree walk. A single scan publishes results for the requested root and its descendant directories.
 - `DirectoryChangeListener` converts VFS changes into affected paths. Changed subtrees and cached ancestors are invalidated; unrelated cached entries remain valid.
-- `RecalculateFolderSizesAction` exposes **Recalculate Folder Sizes** in the Project view context menu and clears the cache.
-- `SortBySizeAction` exposes **Sort by Size** in the Project view's native Sort menu. It installs `SizeComparator` for the active pane and restores IntelliJ's normal comparator when disabled.
+- `RecalculateFolderSizesAction` exposes **Recalculate Folder Sizes** in the Project view context menu and under **Options → Appearance**, and clears the cache.
+- `SortBySizeAction` exposes **Size** in the Project view's native **Sort By** menu. It installs `SizeComparator` for the active pane and restores IntelliJ's normal comparator when disabled.
 - `SizeComparator` orders known sizes largest-first, leaves names as the stable tie-breaker, and respects **Folders Always on Top**. Files use their `VirtualFile` length, folders use cached recursive metrics, and modules use the combined recursive size of all content roots.
 - `MetricFormatter` formats decimal units (`KB`, `MB`, and so on) and singular/plural counts.
 
@@ -107,6 +107,7 @@ On 2026-09-27:
 - After tying folder metrics to File Details and adding automatic activation, `test buildPlugin` passed and Plugin Verifier again reported `Compatible` for both builds with no plugin defects or API warnings. The plugin remained eligible for dynamic enable/disable without an IDE restart.
 - After adding size sorting for files, folders, and modules, all 7 unit tests and `buildPlugin` passed. Plugin Verifier reported `Compatible` for IDEA builds `262.10968.63` and `263.5701.42`, with no internal or experimental API warnings; dynamic enable/disable remained eligible.
 - After adding recursive stats to module grouping nodes, all 9 unit tests passed. Plugin Verifier reported `Compatible` for IDEA builds `262.10968.63` and `263.5701.42`; dynamic enable/disable remained eligible. New aggregation coverage verifies count/size summation, partial-status propagation, and saturation at `Long.MAX_VALUE`.
+- After placing recalculation under **Options → Appearance** and shortening the native **Sort By** entry to **Size**, all 9 unit tests and `buildPlugin` passed. The rebuilt JAR was installed and its action registrations were verified from the installed manifest.
 - The rebuilt plugin was installed into the IntelliJ IDEA 2026.2 user-plugin directory, and the installed JAR was checked byte-for-byte against the build output.
 
 After copying a new build into the user plugin directory, restart IntelliJ to load it.

@@ -33,10 +33,11 @@
                 text="Recalculate Folder Sizes"
                 description="Discard cached folder metrics and calculate them again">
             <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+            <add-to-group group-id="ProjectView.ToolWindow.Appearance.Actions" anchor="last"/>
         </action>
         <action id="FolderSizes.SortBySize"
                 class="com.github.phaze9.foldersizes.SortBySizeAction"
-                text="Sort by Size"
+                text="Size"
                 description="Sort project files, folders, and modules from largest to smallest">
             <add-to-group group-id="ProjectView.ToolWindow.Sort.Actions"
                           anchor="after"

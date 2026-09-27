@@ -18,8 +18,8 @@ Details off afterwards also hides the folder details.
 - One bottom-up scan publishes metrics for the requested directory and its descendants, avoiding a separate recursive walk when child folders are expanded.
 - Results are held in a per-project cache capped at 50,000 entries and expire after 10 minutes.
 - IntelliJ VFS events invalidate changed paths, their descendants, and cached ancestors, then refresh the Project view after a short debounce.
-- **Recalculate Folder Sizes** in the Project view context menu clears the cache on demand.
-- **Sort by Size** in the Project view's Sort menu orders files, folders, and modules from largest to smallest. Module size is the combined recursive size of its content roots. Folders and modules move into place as their background calculations finish.
+- **Recalculate Folder Sizes** in the Project view context menu and Options → Appearance clears the cache on demand.
+- **Size** in the Project view's Sort menu orders files, folders, and modules from largest to smallest. Module size is the combined recursive size of its content roots. Folders and modules move into place as their background calculations finish.
 - Unreadable entries do not abort a scan; the displayed result is marked `partial`.
 
 ## Build and run
